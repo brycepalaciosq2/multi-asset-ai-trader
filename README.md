@@ -17,6 +17,8 @@ Paper-first LEAN (QuantConnect) dual-momentum (GEM-style) bot.
 
 ## Run (LEAN CLI)
 
+**Requires:** Docker (daemon running) + Lean CLI (`pip install lean`) + equity daily data for SPY/EFA/AGG/BIL (via `lean data download` after `lean login`, or local data folders). Without these, `lean backtest` will not run.
+
 pip install lean
 lean init
 # copy main.py + risk/ into the Lean project
