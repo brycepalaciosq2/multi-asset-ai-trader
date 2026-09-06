@@ -24,13 +24,16 @@ class HardLimitsRiskModel(RiskManagementModel):
         day = algorithm.Time.date()
         portfolio_value = float(algorithm.Portfolio.TotalPortfolioValue)
 
-        # Reset halt only on a new calendar day.
+        # New day: reset daily-loss baseline + halt flag only.
+        # Keep a running high-water mark for max DD (do NOT reset _peak daily).
         if self._day != day:
             self._day = day
             self._day_start = portfolio_value
-            self._peak = portfolio_value
             self.halted = False
-        elif not self.halted and self._peak is not None and portfolio_value > self._peak:
+            if self._peak is None:
+                self._peak = portfolio_value
+
+        if not self.halted and (self._peak is None or portfolio_value > self._peak):
             self._peak = portfolio_value
 
         if not self.halted:
