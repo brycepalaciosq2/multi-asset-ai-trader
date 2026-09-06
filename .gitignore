@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+.venv/
+venv/
+storage/
+live/
+backtests/
+lean.json
+*.log
+.idea/
+.vscode/
+.DS_Store
+config.json
