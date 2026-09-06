@@ -4,7 +4,7 @@ from AlgorithmImports import *
 class HardLimitsRiskModel(RiskManagementModel):
     """Max notional, max open positions, daily-loss kill-switch (flatten + block)."""
 
-    def __init__(self, max_notional=50_000, max_open=5, daily_loss_pct=0.02):
+    def __init__(self, max_notional=100_000, max_open=5, daily_loss_pct=0.02):
         self.max_notional = float(max_notional)
         self.max_open = int(max_open)
         self.daily_loss_pct = float(daily_loss_pct)
