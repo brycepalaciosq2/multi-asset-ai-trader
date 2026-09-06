@@ -2,7 +2,7 @@
 
 Paper-first LEAN (QuantConnect) dual-momentum (GEM-style) bot.
 
-## Scope (v0.3)
+## Scope (v0.3 + Alpaca paper path)
 
 - Universe: `SPY`, `EFA`, `AGG` (cash sleeve = **true cash**, BIL dropped — never filled in sample data)
 - Signal: 12-month absolute + relative momentum, **monthly** rebalance
@@ -15,6 +15,31 @@ Paper-first LEAN (QuantConnect) dual-momentum (GEM-style) bot.
   - resume when equity recovers to HWM **or** after `resume_after_halt_days=60` flat (peak resets to current)
 - **Paper / backtest only** — no live brokers until helper sign-off
 - Crypto / FX / IB / Alpaca / MT5: **off** until risk sign-off
+
+## Alpaca Paper (Lean live) — demos only
+
+Conditional helper sign-off allows **Alpaca Paper** after Lean backtest. **No live keys.**
+
+1. Create paper keys at https://alpaca.markets (Paper dashboard).
+2. Export paper credentials only:
+   ```bash
+   export ALPACA_API_KEY=...
+   export ALPACA_API_SECRET=...
+   # do NOT set ALPACA_LIVE=1
+   ```
+3. From a Lean project that contains `main.py`, `risk/`, `portfolio/`:
+   ```bash
+   chmod +x scripts/alpaca_paper_deploy.sh
+   ./scripts/alpaca_paper_deploy.sh
+   ```
+   Or manually:
+   ```bash
+   lean live deploy . --brokerage Alpaca --alpaca-environment Paper \
+     --alpaca-api-key "$ALPACA_API_KEY" --alpaca-api-secret "$ALPACA_API_SECRET"
+   ```
+4. Still blocked until further sign-off: IB live/paper wiring in-repo, MT5/cTrader, crypto testnets.
+
+See QuantConnect Lean CLI docs for Alpaca brokerage flags if CLI version differs.
 
 ## Not added yet (approved later)
 

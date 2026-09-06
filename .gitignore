@@ -11,3 +11,5 @@ lean.json
 .vscode/
 .DS_Store
 config.json
+.env
+*.pem
