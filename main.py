@@ -10,12 +10,13 @@ class MultiAssetAiTrader(QCAlgorithm):
         self.UniverseSettings.Resolution = Resolution.Daily
         self.SetBenchmark("SPY")
 
-        tickers = ["SPY", "EFA", "AGG", "BIL"]
+        # Equities only — cash sleeve holds true cash (no BIL; sample data never traded it).
+        tickers = ["SPY", "EFA", "AGG"]
         self._symbols = [self.AddEquity(t, Resolution.Daily).Symbol for t in tickers]
         self.SetWarmUp(252, Resolution.Daily)
 
         self.SetAlpha(GemDualMomentumAlphaModel(
-            risk_on=["SPY", "EFA"], risk_off="AGG", cash="BIL",
+            risk_on=["SPY", "EFA"], risk_off="AGG", cash="CASH",
             lookback_days=252, rebalance_days=21,
         ))
         self.SetPortfolioConstruction(SingleNamePortfolioConstructionModel())
@@ -25,6 +26,7 @@ class MultiAssetAiTrader(QCAlgorithm):
             max_open=3,
             daily_loss_pct=0.02,
             max_drawdown_pct=0.15,
+            resume_after_halt_days=60,
         ))
         self.Debug("PAPER/BACKTEST ONLY — no live brokerage until helper sign-off")
 
@@ -47,7 +49,7 @@ class GemDualMomentumAlphaModel(AlphaModel):
         if self._last is not None and (algorithm.Time - self._last).days < self.rebalance_days:
             return []
 
-        needed = self.risk_on + [self.risk_off, self.cash]
+        needed = self.risk_on + [self.risk_off]
         symbols = []
         for t in needed:
             if t in self._symbols:
@@ -96,18 +98,9 @@ class GemDualMomentumAlphaModel(AlphaModel):
         period = timedelta(days=self.rebalance_days)
         self._last = algorithm.Time
 
+        # True cash sleeve: Flat all equities (PCM zeros everything; no BIL).
         if pick == self.cash:
-            bil = self._symbols.get(self.cash)
-            bil_ok = False
-            if bil is not None and algorithm.Securities.ContainsKey(bil):
-                try:
-                    bil_ok = float(algorithm.Securities[bil].Price) > 0 and ret_12m(bil) is not None
-                except Exception:
-                    bil_ok = False
-            if bil_ok:
-                algorithm.Debug("GEM cash sleeve -> BIL")
-                return [Insight.Price(bil, period, InsightDirection.Up, weight=1.0)]
-            algorithm.Debug("BIL data missing — flattening to cash")
+            algorithm.Debug("GEM cash sleeve -> true cash (flatten equities)")
             return [
                 Insight.Price(sym, period, InsightDirection.Flat)
                 for sym in self._symbols.values()
