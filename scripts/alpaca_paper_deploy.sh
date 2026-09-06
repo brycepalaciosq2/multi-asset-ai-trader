@@ -19,5 +19,4 @@ lean live deploy . \
   --brokerage "Alpaca" \
   --alpaca-environment Paper \
   --alpaca-api-key "$ALPACA_API_KEY" \
-  --alpaca-api-secret "$ALPACA_API_SECRET" \
-  "$@"
+  --alpaca-api-secret "$ALPACA_API_SECRET"
