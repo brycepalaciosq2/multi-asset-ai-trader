@@ -2,15 +2,22 @@
 
 Paper-first LEAN (QuantConnect) dual-momentum (GEM-style) bot.
 
-## Scope (v0.1)
+## Scope (v0.2)
 
 - Universe: `SPY`, `EFA`, `AGG`, `BIL` (cash proxy)
 - Signal: 12-month absolute + relative momentum, **monthly** rebalance
-- Portfolio: **InsightWeighting** — GEM winner gets weight 1.0; all other names get **Flat** (single-name flips)
-- Risk: `HardLimitsRiskModel` — max notional 100k, max open 3, daily-loss 2% + max drawdown 15% **hard halt** (flatten + **no rebuy until next calendar day**)
+- Portfolio: `SingleNamePortfolioConstructionModel` — 100% into GEM winner, **explicit zero** on all other holdings
+- Risk: `HardLimitsRiskModel`
+  - max notional 100k, max open 3
+  - daily-loss 2% halt (clears next calendar day)
+  - max drawdown 15% from **running high-water mark** — stays flat until equity **recovers above HWM**
 - **Paper / backtest only** — no live brokers until helper sign-off
 - Crypto / FX: **off** until risk is proven
-- **BIL:** needs equity daily data; if BIL is missing/unpriced when cash is selected, bot flattens to cash and logs a Debug line
+- **BIL:** cash sleeve buys BIL when priced; if missing/unpriced → flatten to cash + Debug
+
+## Not added yet (approved later)
+
+- Qlib / FinRL signals, Freqtrade-style UX (reimplement), CCXT/Hummingbot crypto, MT5/cTrader bridges, IB/Alpaca paper wiring
 
 ## License notes
 
@@ -24,7 +31,7 @@ Paper-first LEAN (QuantConnect) dual-momentum (GEM-style) bot.
 ```bash
 pip install lean
 lean init
-# copy main.py + risk/ into the Lean project
+# copy main.py + risk/ + portfolio/ into the Lean project
 lean backtest .
 # later: lean live deploy "..." --brokerage "Paper Trading"
 ```

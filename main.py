@@ -1,5 +1,6 @@
 from AlgorithmImports import *
 from risk.HardLimitsRiskModel import HardLimitsRiskModel
+from portfolio.SingleNamePortfolioConstructionModel import SingleNamePortfolioConstructionModel
 
 
 class MultiAssetAiTrader(QCAlgorithm):
@@ -17,10 +18,8 @@ class MultiAssetAiTrader(QCAlgorithm):
             risk_on=["SPY", "EFA"], risk_off="AGG", cash="BIL",
             lookback_days=252, rebalance_days=21,
         ))
-        # InsightWeighting + Flat non-picks => single-name flips
-        self.SetPortfolioConstruction(InsightWeightingPortfolioConstructionModel())
+        self.SetPortfolioConstruction(SingleNamePortfolioConstructionModel())
         self.SetExecution(ImmediateExecutionModel())
-        # HardLimits owns daily-loss + max DD halt (no conflicting MaxDD model)
         self.SetRiskManagement(HardLimitsRiskModel(
             max_notional=100_000,
             max_open=3,
@@ -90,13 +89,13 @@ class GemDualMomentumAlphaModel(AlphaModel):
         if best_r > 0:
             pick = best_t
         else:
-            off_r = ret_12m(self._symbols.get(self.risk_off))
+            off_sym = self._symbols.get(self.risk_off)
+            off_r = ret_12m(off_sym) if off_sym else None
             pick = self.risk_off if (off_r is not None and off_r > 0) else self.cash
 
-        pick_sym = self._symbols.get(pick)
         period = timedelta(days=self.rebalance_days)
+        self._last = algorithm.Time
 
-        # Cash / BIL path: if BIL missing or unpriced, flatten all equities to cash.
         if pick == self.cash:
             bil = self._symbols.get(self.cash)
             bil_ok = False
@@ -105,22 +104,17 @@ class GemDualMomentumAlphaModel(AlphaModel):
                     bil_ok = float(algorithm.Securities[bil].Price) > 0 and ret_12m(bil) is not None
                 except Exception:
                     bil_ok = False
-            if not bil_ok:
-                algorithm.Debug("BIL data missing — flattening to cash")
-                self._last = algorithm.Time
-                return [
-                    Insight.Price(sym, period, InsightDirection.Flat)
-                    for sym in self._symbols.values()
-                ]
+            if bil_ok:
+                algorithm.Debug("GEM cash sleeve -> BIL")
+                return [Insight.Price(bil, period, InsightDirection.Up, weight=1.0)]
+            algorithm.Debug("BIL data missing — flattening to cash")
+            return [
+                Insight.Price(sym, period, InsightDirection.Flat)
+                for sym in self._symbols.values()
+            ]
 
+        pick_sym = self._symbols.get(pick)
         if not pick_sym:
             return []
-
-        self._last = algorithm.Time
-        insights = []
-        for ticker, sym in self._symbols.items():
-            if sym == pick_sym:
-                insights.append(Insight.Price(sym, period, InsightDirection.Up, weight=1.0))
-            else:
-                insights.append(Insight.Price(sym, period, InsightDirection.Flat))
-        return insights
+        algorithm.Debug(f"GEM pick -> {pick}")
+        return [Insight.Price(pick_sym, period, InsightDirection.Up, weight=1.0)]
