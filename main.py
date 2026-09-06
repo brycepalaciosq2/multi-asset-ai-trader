@@ -19,7 +19,7 @@ class MultiAssetAiTrader(QCAlgorithm):
         ))
         self.SetPortfolioConstruction(EqualWeightingPortfolioConstructionModel(Resolution.Daily))
         self.SetExecution(ImmediateExecutionModel())
-        self.SetRiskManagement(HardLimitsRiskModel(max_notional=50_000, max_open=3, daily_loss_pct=0.02))
+        self.SetRiskManagement(HardLimitsRiskModel(max_notional=100_000, max_open=3, daily_loss_pct=0.02))
         self.AddRiskManagement(MaximumDrawdownPercentPortfolio(0.15))
         self.Debug("PAPER/BACKTEST ONLY — no live brokerage until helper sign-off")
 
