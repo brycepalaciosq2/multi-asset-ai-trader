@@ -2,7 +2,7 @@ from AlgorithmImports import *
 
 
 class HardLimitsRiskModel(RiskManagementModel):
-    """Max notional / max open + hard daily-loss and max-drawdown halt (flatten + block)."""
+    """Max notional / max open + daily-loss (day reset) + max-DD halt until HWM recovery."""
 
     def __init__(
         self,
@@ -18,40 +18,52 @@ class HardLimitsRiskModel(RiskManagementModel):
         self._day = None
         self._day_start = None
         self._peak = None
-        self.halted = False
+        self._daily_halted = False
+        self._dd_halted = False
+
+    @property
+    def halted(self):
+        return self._daily_halted or self._dd_halted
 
     def ManageRisk(self, algorithm, targets):
         day = algorithm.Time.date()
         portfolio_value = float(algorithm.Portfolio.TotalPortfolioValue)
 
-        # New day: reset daily-loss baseline + halt flag only.
-        # Keep a running high-water mark for max DD (do NOT reset _peak daily).
+        # New day: only clear daily-loss halt + baseline. MaxDD halt persists.
         if self._day != day:
             self._day = day
             self._day_start = portfolio_value
-            self.halted = False
+            self._daily_halted = False
             if self._peak is None:
                 self._peak = portfolio_value
 
-        if not self.halted and (self._peak is None or portfolio_value > self._peak):
+        # Running high-water mark (frozen while DD-halted).
+        if not self._dd_halted and (self._peak is None or portfolio_value > self._peak):
             self._peak = portfolio_value
 
-        if not self.halted:
-            daily_loss_breached = (
-                self._day_start is not None
-                and self._day_start > 0
-                and portfolio_value < self._day_start * (1 - self.daily_loss_pct)
-            )
-            drawdown_breached = (
-                self._peak is not None
-                and self._peak > 0
-                and portfolio_value < self._peak * (1 - self.max_drawdown_pct)
-            )
-            if daily_loss_breached or drawdown_breached:
-                self.halted = True
+        # Trip daily-loss (clears next calendar day).
+        if (
+            not self._daily_halted
+            and self._day_start is not None
+            and self._day_start > 0
+            and portfolio_value < self._day_start * (1 - self.daily_loss_pct)
+        ):
+            self._daily_halted = True
+
+        # Trip max DD from running peak (sticks until recovery above HWM).
+        if (
+            not self._dd_halted
+            and self._peak is not None
+            and self._peak > 0
+            and portfolio_value < self._peak * (1 - self.max_drawdown_pct)
+        ):
+            self._dd_halted = True
+
+        # Clear DD halt only after full recovery to high-water mark.
+        if self._dd_halted and self._peak is not None and portfolio_value >= self._peak:
+            self._dd_halted = False
 
         if self.halted:
-            # Flatten invested names and drop every non-zero incoming target (no same-day rebuy).
             return [
                 PortfolioTarget(kvp.Key, 0)
                 for kvp in algorithm.Portfolio
