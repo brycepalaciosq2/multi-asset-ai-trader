@@ -2,52 +2,80 @@ from AlgorithmImports import *
 
 
 class HardLimitsRiskModel(RiskManagementModel):
-    """Max notional, max open positions, daily-loss kill-switch (flatten + block)."""
+    """Hard daily-loss and drawdown halt with flatten-and-block behavior."""
 
-    def __init__(self, max_notional=100_000, max_open=5, daily_loss_pct=0.02):
+    def __init__(
+        self,
+        max_notional=100_000,
+        max_open=3,
+        daily_loss_pct=0.02,
+        max_drawdown_pct=0.15,
+    ):
         self.max_notional = float(max_notional)
         self.max_open = int(max_open)
         self.daily_loss_pct = float(daily_loss_pct)
+        self.max_drawdown_pct = float(max_drawdown_pct)
         self._day = None
-        self._day_start = None
+        self._day_start = None        if not self.halted:
+                    daily_loss_breached = (
+                                        self._day_start is not None
+                                        and self._day_start > 0
+                                        and portfolio_value < self._day_start * (1 - self.daily_loss_pct)
+                    )
+                    drawdown_breached = (
+                                        self._peak is not None
+                                        and self._peak > 0
+                                        and portfolio_value < self._peak * (1 - self.max_drawdown_pct)
+                    )
+                    if daily_loss_breached or drawdown_breached:
+                                        self.halted = True
+
+                if self.halted:
+                                # Never pass through incoming targets after a halt: flatten only.
+                                return [
+                                                    PortfolioTarget(kvp.Key, 0)
+                                                    for kvp in algorithm.Portfolio
+                                                    if kvp.Value.Invested
+                                ]
+
+                open_n = sum(1 for kvp in algorithm.Portfolio if kvp.Value.Invested)
+                out = []
+                for target in targets:
+                                if not algorithm.Securities.ContainsKey(target.Symbol):
+                                                    continue
+
+                    price = float(algorithm.Securities[target.Symbol].Price)
+                    if price <= 0:
+                                        continue
+
+                    abs_notional = abs(float(target.Quantity)) * price
+                    if abs_notional > self.max_notional:
+                                        continue
+
+                    is_new = (
+                                        float(target.Quantity) != 0
+                                        and not algorithm.Portfolio[target.Symbol].Invested
+                    )
+                    if is_new and open_n >= self.max_open:
+                                        continue
+
+                    out.append(target)
+                    if is_new:
+                                        open_n += 1
+                                return out
+        
+        self._peak = None
         self.halted = False
 
     def ManageRisk(self, algorithm, targets):
-        d = algorithm.Time.date()
-        if self._day != d:
-            self._day = d
-            self._day_start = algorithm.Portfolio.TotalPortfolioValue
+        day = algorithm.Time.date()
+        portfolio_value = float(algorithm.Portfolio.TotalPortfolioValue)
+
+        if self._day != day:
+            self._day = day
+            self._day_start = portfolio_value
+            self._peak = portfolio_value
             self.halted = False
+        elif not self.halted and self._peak is not None and portfolio_value > self._peak:
+            self._peak = portfolio_value
 
-        pv = algorithm.Portfolio.TotalPortfolioValue
-        if self._day_start and self._day_start > 0 and pv < self._day_start * (1 - self.daily_loss_pct):
-            self.halted = True
-
-        if self.halted:
-            out = []
-            for kvp in algorithm.Portfolio:
-                if kvp.Value.Invested:
-                    out.append(PortfolioTarget(kvp.Key, 0))
-            return out
-
-        open_n = sum(1 for kvp in algorithm.Portfolio if kvp.Value.Invested)
-        out = []
-        for t in targets:
-            if not algorithm.Securities.ContainsKey(t.Symbol):
-                continue
-            price = float(algorithm.Securities[t.Symbol].Price)
-            if price <= 0:
-                continue
-
-            abs_notional = abs(float(t.Quantity)) * price
-            if abs_notional > self.max_notional:
-                continue
-
-            is_new = float(t.Quantity) != 0 and not algorithm.Portfolio[t.Symbol].Invested
-            if is_new and open_n >= self.max_open:
-                continue
-
-            out.append(t)
-            if is_new:
-                open_n += 1
-        return out
